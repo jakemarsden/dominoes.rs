@@ -62,7 +62,10 @@ impl Tokenizer {
     }
 
     pub(in crate::tokenizer) fn reconsume_in(&mut self, next_state: State) {
-        println!("Tokenizer::reconsume_in: {:?} -> {:?}", self.state, next_state);
+        println!(
+            "Tokenizer::reconsume_in: {:?} -> {:?}",
+            self.state, next_state
+        );
         debug_assert!(!self.reconsume_next_input_character);
         self.reconsume_next_input_character = true;
         self.state = next_state;
