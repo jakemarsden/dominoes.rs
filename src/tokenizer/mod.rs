@@ -25,8 +25,8 @@ pub struct Tokenizer {
     output: Rc<RefCell<dyn TokenConsumer>>,
     state: State,
     return_state: Option<State>,
-    reconsume_depth: u8,
     current_input_character: Codepoint,
+    reconsume_next_input_character: bool,
     current_tag_token: Option<IncompleteTag>,
     current_comment_token: Option<IncompleteComment>,
 }
@@ -39,8 +39,8 @@ impl Tokenizer {
             output,
             state: State::Data,
             return_state: None,
-            reconsume_depth: 0,
             current_input_character: Codepoint::NULL,
+            reconsume_next_input_character: false,
             current_tag_token: None,
             current_comment_token: None,
         }
@@ -55,23 +55,19 @@ impl Tokenizer {
     }
 
     pub(in crate::tokenizer) fn next_input_character(&mut self) -> Codepoint {
-        if self.reconsume_depth == 0 {
+        if !self.reconsume_next_input_character {
             self.current_input_character = self.input.consume_next();
         }
         self.current_input_character
     }
 
     pub(in crate::tokenizer) fn reconsume_in(&mut self, next_state: State) {
-        // TODO: I'm unsure if this should be possible; if this assert is ever reached then ensure
-        //       that's the desired behaviour and remove the assert; else `self.reconsume_depth`
-        //       can probably become a `bool`
-        debug_assert_eq!(self.reconsume_depth, 0);
-
         println!("Tokenizer::reconsume_in: {:?} -> {:?}", self.state, next_state);
-        self.reconsume_depth += 1;
+        debug_assert!(!self.reconsume_next_input_character);
+        self.reconsume_next_input_character = true;
         self.state = next_state;
         self.handle();
-        self.reconsume_depth -= 1;
+        self.reconsume_next_input_character = false;
     }
 
     pub(in crate::tokenizer) fn switch_to(&mut self, next_state: State) {
