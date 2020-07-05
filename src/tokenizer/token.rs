@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Doctype {
         name: Option<String>,
@@ -17,9 +17,8 @@ pub enum Token {
     Comment {
         data: String,
     },
-    Character {
-        data: char,
-    },
+    Character(char),
+    EndOfFile,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -36,30 +35,62 @@ pub struct Attributes {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute(String, String);
 
-pub(in crate::tokenizer) trait IncompleteToken:
-    Debug + Default + Into<Token>
-{
-}
+pub(in crate::tokenizer) trait IncompleteToken: Debug + Into<Token> {}
 
 #[derive(Debug)]
 pub(in crate::tokenizer) struct IncompleteDoctype {
-    name: Option<String>,
-    public_identifier: Option<String>,
-    system_identifier: Option<String>,
-    force_quirks: bool,
+    pub(in crate::tokenizer) name: Option<String>,
+    pub(in crate::tokenizer) public_identifier: Option<String>,
+    pub(in crate::tokenizer) system_identifier: Option<String>,
+    pub(in crate::tokenizer) force_quirks: bool,
 }
 
 #[derive(Debug)]
 pub(in crate::tokenizer) struct IncompleteTag {
-    kind: TagKind,
-    tag_name: String,
-    self_closing: bool,
-    attributes: Attributes,
+    pub(in crate::tokenizer) kind: TagKind,
+    pub(in crate::tokenizer) tag_name: String,
+    pub(in crate::tokenizer) self_closing: bool,
+    pub(in crate::tokenizer) attributes: Attributes,
 }
 
 #[derive(Debug)]
 pub(in crate::tokenizer) struct IncompleteComment {
-    data: String,
+    pub(in crate::tokenizer) data: String,
+}
+
+impl Token {
+    pub(in crate::tokenizer) fn default_doctype() -> Self {
+        Self::Doctype {
+            name: None,
+            public_identifier: None,
+            system_identifier: None,
+            force_quirks: false,
+        }
+    }
+
+    pub(in crate::tokenizer) fn default_start_tag() -> Self {
+        Self::Tag {
+            kind: TagKind::Start,
+            tag_name: String::new(),
+            self_closing: false,
+            attributes: Attributes::new(),
+        }
+    }
+
+    pub(in crate::tokenizer) fn default_end_tag() -> Self {
+        Self::Tag {
+            kind: TagKind::End,
+            tag_name: String::new(),
+            self_closing: false,
+            attributes: Attributes::new(),
+        }
+    }
+}
+
+impl From<char> for Token {
+    fn from(data: char) -> Self {
+        Self::Character(data)
+    }
 }
 
 impl Attributes {
@@ -69,6 +100,23 @@ impl Attributes {
 
     pub(in crate::tokenizer) fn push(&mut self, attr: Attribute) {
         self.attrs.push(attr);
+    }
+}
+
+impl PartialEq<Self> for Attributes {
+    //! Does not care about order
+    fn eq(&self, other: &Attributes) -> bool {
+        // TODO: Could be more efficient
+        let mut attrs = self.attrs.clone();
+        let mut other_attrs = other.attrs.clone();
+
+        // Need to sort by value as well as by name. Sorting by name only could be unstable if a
+        // collection has multiple attributes with the same name but different values.
+        let comparator =
+            |a: &Attribute, b: &Attribute| a.name().cmp(b.name()).then(a.value().cmp(b.value()));
+        attrs.sort_by(comparator);
+        other_attrs.sort_by(comparator);
+        attrs == other_attrs
     }
 }
 
@@ -111,10 +159,10 @@ impl Into<Token> for IncompleteDoctype {
     }
 }
 
-impl Default for IncompleteTag {
-    fn default() -> Self {
+impl IncompleteTag {
+    pub(in crate::tokenizer) fn default(kind: TagKind) -> Self {
         Self {
-            kind: TagKind::Start,
+            kind,
             tag_name: String::new(),
             self_closing: false,
             attributes: Attributes::new(),

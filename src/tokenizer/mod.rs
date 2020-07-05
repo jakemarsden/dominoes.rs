@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 pub use error::*;
 use state::*;
 pub use token::*;
@@ -9,59 +12,136 @@ mod state;
 mod token;
 mod util;
 
-pub struct Tokenizer {
-    input: CodepointStream,
-    state: State,
-    current_input_character: Codepoint,
-    reconsume_depth: u8,
+#[cfg(test)]
+mod tests;
+
+pub trait TokenConsumer {
+    fn accept_token(&mut self, token: Token);
+    fn accept_parse_error(&mut self, error: ParseError);
 }
 
-impl From<String> for Tokenizer {
-    fn from(input: String) -> Self {
-        Self {
-            input: CodepointStream::from(input),
-            state: State::Data,
-            current_input_character: Codepoint::NULL,
-            reconsume_depth: 0,
-        }
-    }
+pub struct Tokenizer {
+    input: CodepointStream,
+    output: Rc<RefCell<dyn TokenConsumer>>,
+    state: State,
+    return_state: Option<State>,
+    reconsume_depth: u8,
+    current_input_character: Codepoint,
+    current_tag_token: Option<IncompleteTag>,
+    current_comment_token: Option<IncompleteComment>,
 }
 
 impl Tokenizer {
-    pub fn exec(&mut self) {
-        while self.input.peek(0) != Codepoint::EndOfFile {
-            self.handle(self.state);
+    pub fn new(input: String, output: Rc<RefCell<dyn TokenConsumer>>) -> Self {
+        // TODO: Is a Rc<RefCell<dyn ...>> the best API for a mutable callback? I don't know
+        Self {
+            input: CodepointStream::from(input),
+            output,
+            state: State::Data,
+            return_state: None,
+            reconsume_depth: 0,
+            current_input_character: Codepoint::NULL,
+            current_tag_token: None,
+            current_comment_token: None,
         }
-        self.handle(self.state);
     }
 
-    pub(in crate::tokenizer) fn consume_next_input_character(&mut self) -> Codepoint {
+    pub fn exec(&mut self) {
+        while self.input.peek(0) != Codepoint::EndOfFile {
+            self.handle();
+        }
+        // handle the single remaining codepoint (EOF)
+        self.handle();
+    }
+
+    pub(in crate::tokenizer) fn next_input_character(&mut self) -> Codepoint {
         if self.reconsume_depth == 0 {
             self.current_input_character = self.input.consume_next();
         }
         self.current_input_character
     }
 
-    pub(in crate::tokenizer) fn reconsume_in(&mut self, state: State) {
-        // TODO: if we never hit this assert, `self.reconsume_depth` can be a `bool`
+    pub(in crate::tokenizer) fn reconsume_in(&mut self, next_state: State) {
+        // TODO: I'm unsure if this should be possible; if this assert is ever reached then ensure
+        //       that's the desired behaviour and remove the assert; else `self.reconsume_depth`
+        //       can probably become a `bool`
         debug_assert_eq!(self.reconsume_depth, 0);
+
+        println!("Tokenizer::reconsume_in: {:?} -> {:?}", self.state, next_state);
         self.reconsume_depth += 1;
-        self.handle(state);
+        self.state = next_state;
+        self.handle();
         self.reconsume_depth -= 1;
     }
 
-    pub(in crate::tokenizer) fn emit_token(&self, token: Token) {
-        // TODO: emit the token
+    pub(in crate::tokenizer) fn switch_to(&mut self, next_state: State) {
+        if self.state == next_state {
+            return;
+        }
+        println!("Tokenizer::switch_to: {:?} -> {:?}", self.state, next_state);
+        self.state = next_state;
+    }
+
+    pub(in crate::tokenizer) fn emit_character(&self, data: char) {
+        self.emit_token(Token::Character(data));
+    }
+
+    pub(in crate::tokenizer) fn emit_eof(&self) {
+        self.emit_token(Token::EndOfFile);
+    }
+
+    fn emit_token(&self, token: Token) {
         println!("Tokenizer::emit_token: {:?}", token);
+        self.output.borrow_mut().accept_token(token);
     }
 
     pub(in crate::tokenizer) fn emit_parse_error(&self, error: ParseError) {
-        // TODO: emit the error
         println!("Tokenizer::emit_parse_error: {:?}", error);
+        self.output.borrow_mut().accept_parse_error(error);
     }
 
-    fn handle(&mut self, state: State) {
-        match state {
+    pub(in crate::tokenizer) fn create_new_start_tag_token(&mut self) {
+        debug_assert!(self.current_tag_token.is_none());
+        self.current_tag_token = Some(IncompleteTag::default(TagKind::Start));
+    }
+
+    pub(in crate::tokenizer) fn create_new_end_tag_token(&mut self) {
+        debug_assert!(self.current_tag_token.is_none());
+        self.current_tag_token = Some(IncompleteTag::default(TagKind::End));
+    }
+
+    pub(in crate::tokenizer) fn current_tag_token(&mut self) -> &mut IncompleteTag {
+        self.current_tag_token.as_mut().unwrap()
+    }
+
+    pub(in crate::tokenizer) fn emit_current_tag_token(&mut self) {
+        let incomplete_token = self.current_tag_token.take().unwrap();
+        self.emit_token(incomplete_token.into());
+    }
+
+    pub(in crate::tokenizer) fn create_new_comment_token(&mut self) {
+        debug_assert!(self.current_comment_token.is_none());
+        self.current_comment_token = Some(IncompleteComment::default());
+    }
+
+    pub(in crate::tokenizer) fn current_comment_token(&mut self) -> &mut IncompleteComment {
+        self.current_comment_token.as_mut().unwrap()
+    }
+
+    pub(in crate::tokenizer) fn emit_current_comment_token(&mut self) {
+        let incomplete_token = self.current_comment_token.take().unwrap();
+        self.emit_token(incomplete_token.into());
+    }
+
+    pub(in crate::tokenizer) fn emit_current_input_character(&self) {
+        match self.current_input_character {
+            Codepoint::Scalar(ch) => self.emit_character(ch),
+            Codepoint::EndOfFile => panic!(),
+        }
+    }
+
+    fn handle(&mut self) {
+        match self.state {
             State::Data => self.handle_data(),
             State::RCDATA => self.handle_rcdata(),
             State::RAWTEXT => self.handle_rawtext(),

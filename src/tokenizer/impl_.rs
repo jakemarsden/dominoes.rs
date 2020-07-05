@@ -1,8 +1,33 @@
-use super::Tokenizer;
+use std::char::REPLACEMENT_CHARACTER;
+
+use crate::tokenizer::*;
+use crate::tokenizer::ParseError::*;
+use crate::tokenizer::state::State::*;
+use crate::tokenizer::util::Codepoint::*;
 
 impl Tokenizer {
     pub(in crate::tokenizer) fn handle_data(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('&') => {
+                debug_assert_eq!(self.return_state, None);
+                self.return_state = Some(Data);
+                self.switch_to(CharacterReference);
+            }
+            Scalar('<') => {
+                self.switch_to(TagOpen);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.emit_current_input_character();
+            }
+            EndOfFile => {
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_current_input_character();
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_rcdata(&mut self) {
@@ -24,15 +49,93 @@ impl Tokenizer {
 
 impl Tokenizer {
     pub(in crate::tokenizer) fn handle_tag_open(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('!') => {
+                self.switch_to(MarkupDeclarationOpen);
+            }
+            Scalar('/') => {
+                self.switch_to(EndTagOpen);
+            }
+            Scalar(ch) if ch.is_ascii_alphabetic() => {
+                self.create_new_start_tag_token();
+                self.reconsume_in(TagName);
+            }
+            Scalar('?') => {
+                self.emit_parse_error(UnexpectedQuestionMarkInsteadOfTagName);
+                self.create_new_comment_token();
+                self.reconsume_in(BogusComment);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofBeforeTagName);
+                self.emit_character('<');
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(InvalidFirstCharacterOfTagName);
+                self.emit_character('<');
+                self.reconsume_in(Data);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_end_tag_open(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar(ch) if ch.is_ascii_alphabetic() => {
+                self.create_new_end_tag_token();
+                self.reconsume_in(TagName);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(MissingEndTagName);
+                self.switch_to(Data);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofBeforeTagName);
+                self.emit_character('<');
+                self.emit_character('/');
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(InvalidFirstCharacterOfTagName);
+                self.create_new_comment_token();
+                self.reconsume_in(BogusComment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_tag_name(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.switch_to(BeforeAttributeName);
+            }
+            Scalar('/') => {
+                self.switch_to(SelfClosingStartTag);
+            }
+            Scalar('>') => {
+                self.switch_to(Data);
+                self.emit_current_tag_token();
+            }
+            Scalar(ch) if ch.is_ascii_uppercase() => {
+                self.current_tag_token()
+                    .tag_name
+                    .push(ch.to_ascii_lowercase());
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_tag_token()
+                    .tag_name
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInTag);
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_tag_token().tag_name.push(ch);
+            }
+        }
     }
 }
 
