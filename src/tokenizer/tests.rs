@@ -39,11 +39,12 @@ fn empty_html_tags() {
         EndOfFile,
     ]);
     mock.assert_no_errors();
+    assert_eq!(tokenizer.state, State::Data);
 }
 
 #[test]
-fn empty_html_tags_with_simple_doctype() {
-    let input = "<!DOCTYPE html><html></html>";
+fn dtd_less_doctype_decl() {
+    let input = "<!DOCTYPE html>";
 
     let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
     let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
@@ -57,21 +58,76 @@ fn empty_html_tags_with_simple_doctype() {
             system_identifier: None,
             force_quirks: false,
         },
-        Tag {
-            kind: TagKind::Start,
-            tag_name: String::from("html"),
-            self_closing: false,
-            attributes: Attributes::new(),
-        },
-        Tag {
-            kind: TagKind::End,
-            tag_name: String::from("html"),
-            self_closing: false,
-            attributes: Attributes::new(),
+        EndOfFile,
+    ]);
+    mock.assert_no_errors();
+    assert_eq!(tokenizer.state, State::Data);
+}
+
+#[test]
+fn doctype_decl_with_legacy_public_identifier() {
+    let input = "<!DOCTYPE html PUBLIC \"my 'public' identifier\">";
+
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
+    tokenizer.exec();
+
+    let mock = mock.borrow_mut();
+    mock.assert_tokens_eq(&[
+        Doctype {
+            name: Some(String::from("html")),
+            public_identifier: Some(String::from("my 'public' identifier")),
+            system_identifier: None,
+            force_quirks: false,
         },
         EndOfFile,
     ]);
     mock.assert_no_errors();
+    assert_eq!(tokenizer.state, State::Data);
+}
+
+#[test]
+fn doctype_decl_with_legacy_system_identifier() {
+    let input = "<!DOCTYPE html SYSTEM \"my 'system' identifier\">";
+
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
+    tokenizer.exec();
+
+    let mock = mock.borrow_mut();
+    mock.assert_tokens_eq(&[
+        Doctype {
+            name: Some(String::from("html")),
+            public_identifier: None,
+            system_identifier: Some(String::from("my 'system' identifier")),
+            force_quirks: false,
+        },
+        EndOfFile,
+    ]);
+    mock.assert_no_errors();
+    assert_eq!(tokenizer.state, State::Data);
+}
+
+#[test]
+fn doctype_decl_with_legacy_public_and_system_identifiers() {
+    let input = "<!DOCTYPE html PUBLIC \"my 'public' identifier\" \"my 'system' identifier\">";
+
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
+    tokenizer.exec();
+
+    let mock = mock.borrow_mut();
+    mock.assert_tokens_eq(&[
+        Doctype {
+            name: Some(String::from("html")),
+            public_identifier: Some(String::from("my 'public' identifier")),
+            system_identifier: Some(String::from("my 'system' identifier")),
+            force_quirks: false,
+        },
+        EndOfFile,
+    ]);
+    mock.assert_no_errors();
+    assert_eq!(tokenizer.state, State::Data);
 }
 
 struct MockTokenConsumer {

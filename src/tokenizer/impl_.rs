@@ -447,51 +447,415 @@ impl Tokenizer {
     }
 
     pub(in crate::tokenizer) fn handle_afterdoctype_name(&mut self) {
-        unimplemented!();
+        let codepoint = self.peek_next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.next_input_character();
+                // ignore the character
+            }
+            Scalar('>') => {
+                self.next_input_character();
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.next_input_character();
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                if self
+                    .maybe_consume_next_few_matching_characters("PUBLIC", false)
+                    .is_some()
+                {
+                    self.switch_to(AfterDOCTYPEPublicKeyword);
+                } else if self
+                    .maybe_consume_next_few_matching_characters("SYSTEM", false)
+                    .is_some()
+                {
+                    self.switch_to(AfterDOCTYPESystemKeyword);
+                } else {
+                    self.emit_parse_error(InvalidCharacterSequenceAfterDoctypeName);
+                    self.current_doctype_token().force_quirks = true;
+                    self.reconsume_in(BogusDOCTYPE);
+                }
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_afterdoctype_public_keyword(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.switch_to(BeforeDOCTYPEPublicIdentifier);
+            }
+            Scalar('"') => {
+                self.emit_parse_error(MissingWhitespaceAfterDoctypePublicKeyword);
+                self.current_doctype_token().public_identifier = Some(String::new());
+                self.switch_to(DOCTYPEPublicIdentifierDoubleQuoted);
+            }
+            Scalar('\'') => {
+                self.emit_parse_error(MissingWhitespaceAfterDoctypePublicKeyword);
+                self.current_doctype_token().public_identifier = Some(String::new());
+                self.switch_to(DOCTYPEPublicIdentifierSingleQuoted);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(MissingDoctypePublicIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingQuoteBeforeDoctypePublicIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_beforedoctype_public_identifier(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                // ignore the character
+            }
+            Scalar('"') => {
+                self.current_doctype_token().public_identifier = Some(String::new());
+                self.switch_to(DOCTYPEPublicIdentifierDoubleQuoted);
+            }
+            Scalar('\'') => {
+                self.current_doctype_token().public_identifier = Some(String::new());
+                self.switch_to(DOCTYPEPublicIdentifierSingleQuoted);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(MissingDoctypePublicIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingQuoteBeforeDoctypePublicIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_doctype_public_identifier_double_quoted(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('"') => {
+                self.switch_to(AfterDOCTYPEPublicIdentifier);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_doctype_token()
+                    .public_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(AbruptDoctypePublicIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_doctype_token()
+                    .public_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(ch);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_doctype_public_identifier_single_quoted(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\'') => {
+                self.switch_to(AfterDOCTYPEPublicIdentifier);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_doctype_token()
+                    .public_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(AbruptDoctypePublicIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_doctype_token()
+                    .public_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(ch);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_afterdoctype_public_identifier(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.switch_to(BetweenDOCTYPEPublicAndSystemIdentifiers);
+            }
+            Scalar('>') => {
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            Scalar('"') => {
+                self.emit_parse_error(MissingWhitespaceBetweenDoctypePublicAndSystemIdentifiers);
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierDoubleQuoted);
+            }
+            Scalar('\'') => {
+                self.emit_parse_error(MissingWhitespaceBetweenDoctypePublicAndSystemIdentifiers);
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierSingleQuoted);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingQuoteBeforeDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_betweendoctype_public_and_system_identifiers(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                // ignore the character
+            }
+            Scalar('>') => {
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            Scalar('"') => {
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierDoubleQuoted);
+            }
+            Scalar('\'') => {
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierSingleQuoted);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingQuoteBeforeDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_afterdoctype_system_keyword(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.switch_to(BeforeDOCTYPESystemIdentifier);
+            }
+            Scalar('"') => {
+                self.emit_parse_error(MissingWhitespaceAfterDoctypeSystemKeyword);
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierDoubleQuoted);
+            }
+            Scalar('\'') => {
+                self.emit_parse_error(MissingWhitespaceAfterDoctypeSystemKeyword);
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierSingleQuoted);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(MissingDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingQuoteBeforeDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_beforedoctype_system_identifier(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                // ignore the character
+            }
+            Scalar('"') => {
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierDoubleQuoted);
+            }
+            Scalar('\'') => {
+                self.current_doctype_token().system_identifier = Some(String::new());
+                self.switch_to(DOCTYPESystemIdentifierSingleQuoted);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(MissingDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingQuoteBeforeDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_doctype_system_identifier_double_quoted(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('"') => {
+                self.switch_to(AfterDOCTYPESystemIdentifier);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_doctype_token()
+                    .system_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(AbruptDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_doctype_token()
+                    .system_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(ch);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_doctype_system_identifier_single_quoted(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\'') => {
+                self.switch_to(AfterDOCTYPESystemIdentifier);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_doctype_token()
+                    .system_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(AbruptDoctypeSystemIdentifier);
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_doctype_token()
+                    .system_identifier
+                    .as_mut()
+                    .unwrap()
+                    .push(ch);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_afterdoctype_system_identifier(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                // ignore the character
+            }
+            Scalar('>') => {
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(UnexpectedCharacterAfterDoctypeSystemIdentifier);
+                self.reconsume_in(BogusDOCTYPE);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_bogusdoctype(&mut self) {

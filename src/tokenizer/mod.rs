@@ -75,6 +75,10 @@ impl Tokenizer {
         }
     }
 
+    pub(in crate::tokenizer) fn peek_next_input_character(&self) -> Codepoint {
+        self.peek_input_character(0)
+    }
+
     pub(in crate::tokenizer) fn next_input_character(&mut self) -> Codepoint {
         if !self.reconsume_next_input_character {
             self.current_input_character = self.input.consume_next();
