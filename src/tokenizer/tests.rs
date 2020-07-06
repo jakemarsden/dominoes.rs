@@ -41,6 +41,39 @@ fn empty_html_tags() {
     mock.assert_no_errors();
 }
 
+#[test]
+fn empty_html_tags_with_simple_doctype() {
+    let input = "<!DOCTYPE html><html></html>";
+
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
+    tokenizer.exec();
+
+    let mock = mock.borrow_mut();
+    mock.assert_tokens_eq(&[
+        Doctype {
+            name: Some(String::from("html")),
+            public_identifier: None,
+            system_identifier: None,
+            force_quirks: false,
+        },
+        Tag {
+            kind: TagKind::Start,
+            tag_name: String::from("html"),
+            self_closing: false,
+            attributes: Attributes::new(),
+        },
+        Tag {
+            kind: TagKind::End,
+            tag_name: String::from("html"),
+            self_closing: false,
+            attributes: Attributes::new(),
+        },
+        EndOfFile,
+    ]);
+    mock.assert_no_errors();
+}
+
 struct MockTokenConsumer {
     tokens: Vec<Token>,
     parse_errors: Vec<ParseError>,

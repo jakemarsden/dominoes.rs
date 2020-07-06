@@ -27,6 +27,7 @@ pub struct Tokenizer {
     return_state: Option<State>,
     current_input_character: Codepoint,
     reconsume_next_input_character: bool,
+    current_doctype_token: Option<IncompleteDoctype>,
     current_tag_token: Option<IncompleteTag>,
     current_comment_token: Option<IncompleteComment>,
 }
@@ -41,6 +42,7 @@ impl Tokenizer {
             return_state: None,
             current_input_character: Codepoint::NULL,
             reconsume_next_input_character: false,
+            current_doctype_token: None,
             current_tag_token: None,
             current_comment_token: None,
         }
@@ -97,6 +99,20 @@ impl Tokenizer {
     pub(in crate::tokenizer) fn emit_parse_error(&self, error: ParseError) {
         println!("Tokenizer::emit_parse_error: {:?}", error);
         self.output.borrow_mut().accept_parse_error(error);
+    }
+
+    pub(in crate::tokenizer) fn create_new_doctype_token(&mut self) {
+        debug_assert!(self.current_doctype_token.is_none());
+        self.current_doctype_token = Some(IncompleteDoctype::default());
+    }
+
+    pub(in crate::tokenizer) fn current_doctype_token(&mut self) -> &mut IncompleteDoctype {
+        self.current_doctype_token.as_mut().unwrap()
+    }
+
+    pub(in crate::tokenizer) fn emit_current_doctype_token(&mut self) {
+        let incomplete_token = self.current_doctype_token.take().unwrap();
+        self.emit_token(incomplete_token.into());
     }
 
     pub(in crate::tokenizer) fn create_new_start_tag_token(&mut self) {

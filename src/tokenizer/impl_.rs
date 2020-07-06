@@ -283,7 +283,30 @@ impl Tokenizer {
     }
 
     pub(in crate::tokenizer) fn handle_markup_declaration_open(&mut self) {
-        unimplemented!();
+        if self
+            .input
+            .maybe_consume_next_few_matching_characters("--", true)
+            .is_some()
+        {
+            self.create_new_comment_token();
+            self.switch_to(CommentStart);
+        } else if self
+            .input
+            .maybe_consume_next_few_matching_characters("DOCTYPE", false)
+            .is_some()
+        {
+            self.switch_to(DOCTYPE);
+        } else if self
+            .input
+            .maybe_consume_next_few_matching_characters("[CDATA[", true)
+            .is_some()
+        {
+            unimplemented!();
+        } else {
+            self.emit_parse_error(IncorrectlyOpenedComment);
+            self.create_new_comment_token();
+            self.switch_to(BogusComment);
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_start(&mut self) {
@@ -329,15 +352,101 @@ impl Tokenizer {
 
 impl Tokenizer {
     pub(in crate::tokenizer) fn handle_doctype(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.switch_to(BeforeDOCTYPEName);
+            }
+            Scalar('>') => {
+                self.reconsume_in(BeforeDOCTYPEName);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.create_new_doctype_token();
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+            }
+            Scalar(_) => {
+                self.emit_parse_error(MissingWhitespaceBeforeDoctypeName);
+                self.reconsume_in(BeforeDOCTYPEName);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_beforedoctype_name(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                // ignore the character
+            }
+            Scalar(ch) if ch.is_ascii_uppercase() => {
+                self.create_new_doctype_token();
+                self.current_doctype_token().name = Some(ch.to_ascii_lowercase().to_string());
+                self.switch_to(DOCTYPEName);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.create_new_doctype_token();
+                self.current_doctype_token().name = Some(REPLACEMENT_CHARACTER.to_string());
+                self.switch_to(DOCTYPEName);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(MissingDoctypeName);
+                self.create_new_doctype_token();
+                self.current_doctype_token().force_quirks = true;
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.create_new_doctype_token();
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.create_new_doctype_token();
+                self.current_doctype_token().name = Some(ch.to_string());
+                self.switch_to(DOCTYPEName);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_doctype_name(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('\t') | Scalar('\n') | Scalar('\u{000C}') | Scalar(' ') => {
+                self.switch_to(AfterDOCTYPEName);
+            }
+            Scalar('>') => {
+                self.switch_to(Data);
+                self.emit_current_doctype_token();
+            }
+            Scalar(ch) if ch.is_ascii_uppercase() => {
+                self.current_doctype_token()
+                    .name
+                    .as_mut()
+                    .unwrap()
+                    .push(ch.to_ascii_lowercase());
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_doctype_token()
+                    .name
+                    .as_mut()
+                    .unwrap()
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInDoctype);
+                self.current_doctype_token().force_quirks = true;
+                self.emit_current_doctype_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_doctype_token().name.as_mut().unwrap().push(ch);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_afterdoctype_name(&mut self) {
