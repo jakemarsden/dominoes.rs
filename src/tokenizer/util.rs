@@ -35,37 +35,6 @@ impl CodepointStream {
         self.advance(1);
         codepoint
     }
-
-    pub(in crate::tokenizer) fn next_few_characters_match(
-        &self,
-        expected: &str,
-        case_sensitive: bool,
-    ) -> bool {
-        expected
-            .chars()
-            .enumerate()
-            .all(|(idx, expected_ch)| self.peek(idx).eq_char(&expected_ch, case_sensitive))
-    }
-
-    pub(in crate::tokenizer) fn maybe_consume_next_few_matching_characters(
-        &mut self,
-        expected: &str,
-        case_sensitive: bool,
-    ) -> Option<String> {
-        let mut buf = String::with_capacity(expected.len());
-        for (idx, expected_ch) in expected.chars().enumerate() {
-            let codepoint = self.peek(idx);
-            if codepoint.eq_char(&expected_ch, case_sensitive) {
-                let ch = codepoint.try_into().unwrap();
-                buf.push(ch);
-            } else {
-                return None;
-            }
-        }
-        debug_assert_eq!(buf.len(), expected.len());
-        self.advance(buf.len());
-        Some(buf)
-    }
 }
 
 impl From<String> for CodepointStream {

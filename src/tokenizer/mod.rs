@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::convert::TryInto;
 use std::rc::Rc;
 
 pub use error::*;
@@ -56,11 +57,61 @@ impl Tokenizer {
         self.handle();
     }
 
+    fn peek_input_character(&self, offset: usize) -> Codepoint {
+        if self.reconsume_next_input_character {
+            if offset == 0 {
+                self.current_input_character
+            } else {
+                self.input.peek(offset - 1)
+            }
+        } else {
+            self.input.peek(offset)
+        }
+    }
+
+    fn advance_input_character(&mut self, count: usize) {
+        for _ in 0..count {
+            self.next_input_character();
+        }
+    }
+
     pub(in crate::tokenizer) fn next_input_character(&mut self) -> Codepoint {
         if !self.reconsume_next_input_character {
             self.current_input_character = self.input.consume_next();
         }
+        self.reconsume_next_input_character = false;
         self.current_input_character
+    }
+
+    pub(in crate::tokenizer) fn next_few_characters_match(
+        &self,
+        expected: &str,
+        case_sensitive: bool,
+    ) -> bool {
+        expected.chars().enumerate().all(|(idx, expected_ch)| {
+            self.peek_input_character(idx)
+                .eq_char(&expected_ch, case_sensitive)
+        })
+    }
+
+    pub(in crate::tokenizer) fn maybe_consume_next_few_matching_characters(
+        &mut self,
+        expected: &str,
+        case_sensitive: bool,
+    ) -> Option<String> {
+        let mut buf = String::with_capacity(expected.len());
+        for (idx, expected_ch) in expected.chars().enumerate() {
+            let codepoint = self.peek_input_character(idx);
+            if codepoint.eq_char(&expected_ch, case_sensitive) {
+                let ch = codepoint.try_into().unwrap();
+                buf.push(ch);
+            } else {
+                return None;
+            }
+        }
+        debug_assert_eq!(buf.len(), expected.len());
+        self.advance_input_character(buf.len());
+        Some(buf)
     }
 
     pub(in crate::tokenizer) fn reconsume_in(&mut self, next_state: State) {
@@ -72,7 +123,6 @@ impl Tokenizer {
         self.reconsume_next_input_character = true;
         self.state = next_state;
         self.handle();
-        self.reconsume_next_input_character = false;
     }
 
     pub(in crate::tokenizer) fn switch_to(&mut self, next_state: State) {

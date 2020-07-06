@@ -284,20 +284,17 @@ impl Tokenizer {
 
     pub(in crate::tokenizer) fn handle_markup_declaration_open(&mut self) {
         if self
-            .input
             .maybe_consume_next_few_matching_characters("--", true)
             .is_some()
         {
             self.create_new_comment_token();
             self.switch_to(CommentStart);
         } else if self
-            .input
             .maybe_consume_next_few_matching_characters("DOCTYPE", false)
             .is_some()
         {
             self.switch_to(DOCTYPE);
         } else if self
-            .input
             .maybe_consume_next_few_matching_characters("[CDATA[", true)
             .is_some()
         {
