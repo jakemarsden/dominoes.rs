@@ -1,9 +1,9 @@
 use std::char::REPLACEMENT_CHARACTER;
 
-use crate::tokenizer::state::State::*;
-use crate::tokenizer::util::Codepoint::*;
-use crate::tokenizer::ParseError::*;
-use crate::tokenizer::*;
+use super::error::ParseError::*;
+use super::state::State::*;
+use super::util::Codepoint::*;
+use super::Tokenizer;
 
 impl Tokenizer {
     pub(in crate::tokenizer) fn handle_data(&mut self) {

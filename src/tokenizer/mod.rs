@@ -1,13 +1,15 @@
-use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::convert::TryInto;
-use std::rc::Rc;
 
-pub use error::*;
+use error::ParseError;
+use result::Result;
 use state::*;
 pub use token::*;
 use util::*;
 
-mod error;
+pub mod error;
+pub mod result;
+
 mod impl_;
 mod state;
 mod token;
@@ -16,14 +18,10 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-pub trait TokenConsumer {
-    fn accept_token(&mut self, token: Token);
-    fn accept_parse_error(&mut self, error: ParseError);
-}
-
 pub struct Tokenizer {
     input: CodepointStream,
-    output: Rc<RefCell<dyn TokenConsumer>>,
+    output_buf: VecDeque<Result<Token>>,
+    finished: bool,
     state: State,
     return_state: Option<State>,
     current_input_character: Codepoint,
@@ -34,11 +32,11 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
-    pub fn new(input: String, output: Rc<RefCell<dyn TokenConsumer>>) -> Self {
-        // TODO: Is a Rc<RefCell<dyn ...>> the best API for a mutable callback? I don't know
+    pub fn new(input: String) -> Self {
         Self {
             input: CodepointStream::from(input),
-            output,
+            output_buf: VecDeque::with_capacity(4),
+            finished: false,
             state: State::Data,
             return_state: None,
             current_input_character: Codepoint::NULL,
@@ -48,15 +46,33 @@ impl Tokenizer {
             current_comment_token: None,
         }
     }
+}
 
-    pub fn exec(&mut self) {
-        while self.input.peek(0) != Codepoint::EndOfFile {
-            self.handle();
+impl Iterator for Tokenizer {
+    type Item = Result<Token>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.finished {
+            let mut output;
+            loop {
+                output = self.output_buf.pop_front();
+                if output.is_some() {
+                    break;
+                }
+                self.do_some_work();
+            }
+            let output = output.unwrap();
+            if output == Ok(Token::EndOfFile) {
+                self.finished = true;
+            }
+            Some(output)
+        } else {
+            None
         }
-        // handle the single remaining codepoint (EOF)
-        self.handle();
     }
+}
 
+impl Tokenizer {
     fn peek_input_character(&self, offset: usize) -> Codepoint {
         if self.reconsume_next_input_character {
             if offset == 0 {
@@ -126,7 +142,6 @@ impl Tokenizer {
         debug_assert!(!self.reconsume_next_input_character);
         self.reconsume_next_input_character = true;
         self.state = next_state;
-        self.handle();
     }
 
     pub(in crate::tokenizer) fn switch_to(&mut self, next_state: State) {
@@ -137,22 +152,22 @@ impl Tokenizer {
         self.state = next_state;
     }
 
-    pub(in crate::tokenizer) fn emit_character(&self, data: char) {
+    pub(in crate::tokenizer) fn emit_character(&mut self, data: char) {
         self.emit_token(Token::Character(data));
     }
 
-    pub(in crate::tokenizer) fn emit_eof(&self) {
+    pub(in crate::tokenizer) fn emit_eof(&mut self) {
         self.emit_token(Token::EndOfFile);
     }
 
-    fn emit_token(&self, token: Token) {
+    fn emit_token(&mut self, token: Token) {
         println!("Tokenizer::emit_token: {:?}", token);
-        self.output.borrow_mut().accept_token(token);
+        self.output_buf.push_back(Ok(token));
     }
 
-    pub(in crate::tokenizer) fn emit_parse_error(&self, error: ParseError) {
+    pub(in crate::tokenizer) fn emit_parse_error(&mut self, error: ParseError) {
         println!("Tokenizer::emit_parse_error: {:?}", error);
-        self.output.borrow_mut().accept_parse_error(error);
+        self.output_buf.push_back(Err(error));
     }
 
     pub(in crate::tokenizer) fn create_new_doctype_token(&mut self) {
@@ -202,14 +217,14 @@ impl Tokenizer {
         self.emit_token(incomplete_token.into());
     }
 
-    pub(in crate::tokenizer) fn emit_current_input_character(&self) {
+    pub(in crate::tokenizer) fn emit_current_input_character(&mut self) {
         match self.current_input_character {
             Codepoint::Scalar(ch) => self.emit_character(ch),
             Codepoint::EndOfFile => panic!(),
         }
     }
 
-    fn handle(&mut self) {
+    fn do_some_work(&mut self) {
         match self.state {
             State::Data => self.handle_data(),
             State::RCDATA => self.handle_rcdata(),

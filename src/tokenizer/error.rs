@@ -58,7 +58,7 @@ impl Error for ParseError {}
 
 impl Display for ParseError {
     //! ```
-    //! use dominoes::tokenizer::ParseError;
+    //! use dominoes::tokenizer::error::ParseError;
     //! assert_eq!(format!("{}", ParseError::AbruptClosingOfEmptyComment), "AbruptClosingOfEmptyComment");
     //! ```
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
