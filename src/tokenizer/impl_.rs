@@ -307,43 +307,190 @@ impl Tokenizer {
     }
 
     pub(in crate::tokenizer) fn handle_comment_start(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('-') => {
+                self.switch_to(CommentStartDash);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(AbruptClosingOfEmptyComment);
+                self.switch_to(Data);
+                self.emit_current_comment_token();
+            }
+            _ => {
+                self.reconsume_in(Comment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_start_dash(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('-') => {
+                self.switch_to(CommentEnd);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(AbruptClosingOfEmptyComment);
+                self.switch_to(Data);
+                self.emit_current_comment_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInComment);
+                self.emit_current_comment_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.current_comment_token().data.push('-');
+                self.reconsume_in(Comment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('<') => {
+                self.current_comment_token().data.push('<');
+                self.switch_to(CommentLessThanSign);
+            }
+            Scalar('-') => {
+                self.switch_to(CommentEndDash);
+            }
+            Scalar('\0') => {
+                self.emit_parse_error(UnexpectedNullCharacter);
+                self.current_comment_token()
+                    .data
+                    .push(REPLACEMENT_CHARACTER);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInComment);
+                self.emit_current_comment_token();
+                self.emit_eof();
+            }
+            Scalar(ch) => {
+                self.current_comment_token().data.push(ch);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_less_than_sign(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('!') => {
+                self.current_comment_token().data.push('!');
+                self.switch_to(CommentLessThanSignBang);
+            }
+            Scalar('<') => {
+                self.current_comment_token().data.push('<');
+            }
+            _ => {
+                self.reconsume_in(Comment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_less_than_sign_bang(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('-') => {
+                self.switch_to(CommentLessThanSignBangDash);
+            }
+            _ => {
+                self.reconsume_in(Comment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_less_than_sign_bang_dash(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('-') => {
+                self.switch_to(CommentLessThanSignBangDashDash);
+            }
+            _ => {
+                self.reconsume_in(CommentEndDash);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_less_than_sign_bang_dash_dash(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('>') | EndOfFile => {
+                self.reconsume_in(CommentEnd);
+            }
+            Scalar(_) => {
+                self.emit_parse_error(NestedComment);
+                self.reconsume_in(CommentEnd);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_end_dash(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('-') => {
+                self.switch_to(CommentEnd);
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInComment);
+                self.emit_current_comment_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.current_comment_token().data.push('-');
+                self.reconsume_in(Comment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_end(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('>') => {
+                self.switch_to(Data);
+                self.emit_current_comment_token();
+            }
+            Scalar('!') => {
+                self.switch_to(CommentEndBang);
+            }
+            Scalar('-') => {
+                self.current_comment_token().data.push('-');
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInComment);
+                self.emit_current_comment_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.current_comment_token().data.push_str("--");
+                self.reconsume_in(Comment);
+            }
+        }
     }
 
     pub(in crate::tokenizer) fn handle_comment_end_bang(&mut self) {
-        unimplemented!();
+        let codepoint = self.next_input_character();
+        match codepoint {
+            Scalar('-') => {
+                self.current_comment_token().data.push_str("--!");
+                self.switch_to(CommentEnd);
+            }
+            Scalar('>') => {
+                self.emit_parse_error(IncorrectlyClosedComment);
+                self.switch_to(Data);
+                self.emit_current_comment_token();
+            }
+            EndOfFile => {
+                self.emit_parse_error(EofInComment);
+                self.emit_current_comment_token();
+                self.emit_eof();
+            }
+            Scalar(_) => {
+                self.current_comment_token().data.push_str("--!");
+                self.reconsume_in(Comment);
+            }
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+use super::ParseError::*;
 use super::Token::*;
 use super::*;
 
@@ -130,6 +131,44 @@ fn doctype_decl_with_legacy_public_and_system_identifiers() {
     assert_eq!(tokenizer.state, State::Data);
 }
 
+#[test]
+fn comment() {
+    let input = "<!-- This - is -- a -> comment! -->";
+
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
+    tokenizer.exec();
+
+    let mock = mock.borrow_mut();
+    mock.assert_tokens_eq(&[
+        Comment {
+            data: String::from(" This - is -- a -> comment! "),
+        },
+        EndOfFile,
+    ]);
+    mock.assert_no_errors();
+    assert_eq!(tokenizer.state, State::Data);
+}
+
+#[test]
+fn nested_comment_parse_error() {
+    let input = "<!-- This is a <!-- nested comment -->";
+
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
+    tokenizer.exec();
+
+    let mock = mock.borrow_mut();
+    mock.assert_tokens_eq(&[
+        Comment {
+            data: String::from(" This is a <!-- nested comment "),
+        },
+        EndOfFile,
+    ]);
+    mock.assert_parse_errors_eq(&[NestedComment]);
+    assert_eq!(tokenizer.state, State::Data);
+}
+
 struct MockTokenConsumer {
     tokens: Vec<Token>,
     parse_errors: Vec<ParseError>,
@@ -145,6 +184,10 @@ impl MockTokenConsumer {
 
     fn assert_tokens_eq(&self, expected: &[Token]) {
         assert_eq!(self.tokens, expected);
+    }
+
+    fn assert_parse_errors_eq(&self, expected: &[ParseError]) {
+        assert_eq!(self.parse_errors, expected);
     }
 
     fn assert_no_errors(&self) {
