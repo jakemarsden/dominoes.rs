@@ -58,35 +58,6 @@ pub(in crate::tokenizer) struct IncompleteComment {
     pub(in crate::tokenizer) data: String,
 }
 
-impl Token {
-    pub(in crate::tokenizer) fn default_doctype() -> Self {
-        Self::Doctype {
-            name: None,
-            public_identifier: None,
-            system_identifier: None,
-            force_quirks: false,
-        }
-    }
-
-    pub(in crate::tokenizer) fn default_start_tag() -> Self {
-        Self::Tag {
-            kind: TagKind::Start,
-            tag_name: String::new(),
-            self_closing: false,
-            attributes: Attributes::new(),
-        }
-    }
-
-    pub(in crate::tokenizer) fn default_end_tag() -> Self {
-        Self::Tag {
-            kind: TagKind::End,
-            tag_name: String::new(),
-            self_closing: false,
-            attributes: Attributes::new(),
-        }
-    }
-}
-
 impl From<char> for Token {
     fn from(data: char) -> Self {
         Self::Character(data)
@@ -96,10 +67,6 @@ impl From<char> for Token {
 impl Attributes {
     pub(in crate::tokenizer) fn new() -> Self {
         Self { attrs: Vec::new() }
-    }
-
-    pub(in crate::tokenizer) fn push(&mut self, attr: Attribute) {
-        self.attrs.push(attr);
     }
 }
 
@@ -121,10 +88,6 @@ impl PartialEq<Self> for Attributes {
 }
 
 impl Attribute {
-    pub(in crate::tokenizer) fn new(name: &str, value: &str) -> Self {
-        Self(String::from(name), String::from(value))
-    }
-
     pub fn name(&self) -> &str {
         &self.0
     }

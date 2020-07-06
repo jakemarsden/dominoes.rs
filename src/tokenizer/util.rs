@@ -36,7 +36,7 @@ impl CodepointStream {
         codepoint
     }
 
-    pub(in crate::tokenizer) fn next_few_codepoints_match(
+    pub(in crate::tokenizer) fn next_few_characters_match(
         &self,
         expected: &str,
         case_sensitive: bool,
@@ -47,7 +47,7 @@ impl CodepointStream {
             .all(|(idx, expected_ch)| self.peek(idx).eq_char(&expected_ch, case_sensitive))
     }
 
-    pub(in crate::tokenizer) fn maybe_consume_next_few_codepoints(
+    pub(in crate::tokenizer) fn maybe_consume_next_few_matching_characters(
         &mut self,
         expected: &str,
         case_sensitive: bool,

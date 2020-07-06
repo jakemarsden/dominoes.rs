@@ -5,7 +5,7 @@ use super::*;
 fn empty_document() {
     let input = "";
 
-    let mut mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
     let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
     tokenizer.exec();
 
@@ -18,7 +18,7 @@ fn empty_document() {
 fn empty_html_tags() {
     let input = "<html></html>";
 
-    let mut mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
+    let mock = Rc::new(RefCell::new(MockTokenConsumer::new()));
     let mut tokenizer = Tokenizer::new(String::from(input), mock.clone());
     tokenizer.exec();
 
