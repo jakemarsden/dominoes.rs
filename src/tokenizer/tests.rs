@@ -1,12 +1,12 @@
 use super::error::ParseError::*;
 use super::token::Token::*;
 use super::token::{Attributes, TagKind};
-use super::Tokenizer;
+use super::TokenizerImpl;
 
 #[test]
 fn empty_document() {
     let input = "";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -17,7 +17,7 @@ fn empty_document() {
 #[test]
 fn empty_html_tags() {
     let input = "<html></html>";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -42,7 +42,7 @@ fn empty_html_tags() {
 #[test]
 fn dtd_less_doctype_decl() {
     let input = "<!DOCTYPE html>";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -61,7 +61,7 @@ fn dtd_less_doctype_decl() {
 #[test]
 fn doctype_decl_with_legacy_public_identifier() {
     let input = "<!DOCTYPE html PUBLIC \"my 'public' identifier\">";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -80,7 +80,7 @@ fn doctype_decl_with_legacy_public_identifier() {
 #[test]
 fn doctype_decl_with_legacy_system_identifier() {
     let input = "<!DOCTYPE html SYSTEM \"my 'system' identifier\">";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -99,7 +99,7 @@ fn doctype_decl_with_legacy_system_identifier() {
 #[test]
 fn doctype_decl_with_legacy_public_and_system_identifiers() {
     let input = "<!DOCTYPE html PUBLIC \"my 'public' identifier\" \"my 'system' identifier\">";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -118,7 +118,7 @@ fn doctype_decl_with_legacy_public_and_system_identifiers() {
 #[test]
 fn comment() {
     let input = "<!-- This - is -- a -> comment! -->";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 
@@ -134,7 +134,7 @@ fn comment() {
 #[test]
 fn nested_comment_parse_error() {
     let input = "<!-- This is a <!-- nested comment -->";
-    let tokenizer = Tokenizer::new(input.into());
+    let tokenizer = TokenizerImpl::new(input.into());
 
     let actual: Vec<_> = tokenizer.collect();
 

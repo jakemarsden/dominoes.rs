@@ -18,7 +18,9 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-pub struct Tokenizer {
+pub trait Tokenizer: Iterator<Item = Result<Token>> {}
+
+pub struct TokenizerImpl {
     input: CodepointStream,
     output_buf: VecDeque<Result<Token>>,
     finished: bool,
@@ -31,7 +33,7 @@ pub struct Tokenizer {
     current_comment_token: Option<IncompleteComment>,
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub fn new(input: String) -> Self {
         Self {
             input: CodepointStream::from(input),
@@ -48,7 +50,7 @@ impl Tokenizer {
     }
 }
 
-impl Iterator for Tokenizer {
+impl Iterator for TokenizerImpl {
     type Item = Result<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -72,7 +74,9 @@ impl Iterator for Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl Tokenizer for TokenizerImpl {}
+
+impl TokenizerImpl {
     fn peek_input_character(&self, offset: usize) -> Codepoint {
         if self.reconsume_next_input_character {
             if offset == 0 {

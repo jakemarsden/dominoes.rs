@@ -3,9 +3,9 @@ use std::char::REPLACEMENT_CHARACTER;
 use super::error::ParseError::*;
 use super::state::State::*;
 use super::util::Codepoint::*;
-use super::Tokenizer;
+use super::TokenizerImpl;
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_data(&mut self) {
         let codepoint = self.next_input_character();
         match codepoint {
@@ -47,7 +47,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_tag_open(&mut self) {
         let codepoint = self.next_input_character();
         match codepoint {
@@ -139,7 +139,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_rcdata_less_than_sign(&mut self) {
         unimplemented!();
     }
@@ -153,7 +153,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_rawtext_less_than_sign(&mut self) {
         unimplemented!();
     }
@@ -167,7 +167,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_script_data_less_than_sign(&mut self) {
         unimplemented!();
     }
@@ -237,7 +237,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_before_attribute_name(&mut self) {
         unimplemented!();
     }
@@ -271,13 +271,13 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_self_closing_start_tag(&mut self) {
         unimplemented!();
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_bogus_comment(&mut self) {
         unimplemented!();
     }
@@ -494,7 +494,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_doctype(&mut self) {
         let codepoint = self.next_input_character();
         match codepoint {
@@ -1010,7 +1010,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_cdata_section(&mut self) {
         unimplemented!();
     }
@@ -1024,7 +1024,7 @@ impl Tokenizer {
     }
 }
 
-impl Tokenizer {
+impl TokenizerImpl {
     pub(in crate::tokenizer) fn handle_character_reference(&mut self) {
         unimplemented!();
     }
