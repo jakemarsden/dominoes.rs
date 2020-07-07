@@ -1,0 +1,27 @@
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[allow(dead_code)]
+pub(crate) enum InsertionMode {
+    Initial,
+    BeforeHtml,
+    BeforeHead,
+    InHead,
+    InHeadNoscript,
+    AfterHead,
+    InBody,
+    Text,
+    InTable,
+    InTableText,
+    InCaption,
+    InColumnGroup,
+    InTableBody,
+    InRow,
+    InCell,
+    InSelect,
+    InSelectInTable,
+    InTemplate,
+    AfterBody,
+    InFrameset,
+    AfterFrameset,
+    AfterAfterBody,
+    AfterAfterFrameset,
+}

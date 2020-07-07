@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Token {
     Doctype {
         name: Option<String>,
@@ -21,18 +21,18 @@ pub enum Token {
     EndOfFile,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum TagKind {
     Start,
     End,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Attributes {
     attrs: Vec<Attribute>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Attribute(String, String);
 
 pub(in crate::tokenizer) trait IncompleteToken: Debug + Into<Token> {}
